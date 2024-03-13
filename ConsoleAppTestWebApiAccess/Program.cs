@@ -30,7 +30,7 @@ namespace ConsoleAppTestWebApiAccess
             Console.WriteLine($"Scope: {scope}");
             Console.WriteLine("");
 
-            Console.WriteLine("Tryck F för att hämta CCT Fordonsflytt - MoveIT API Bearer Token...");
+            Console.WriteLine("Tryck F för att hämta token...");
             if (Console.ReadKey().Key == ConsoleKey.F)
             {
                 Console.WriteLine(" ");
