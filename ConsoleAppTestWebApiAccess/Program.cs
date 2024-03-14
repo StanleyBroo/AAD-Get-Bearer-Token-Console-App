@@ -1,7 +1,11 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using System;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
 using TextCopy;
 namespace ConsoleAppTestWebApiAccess
 {
@@ -12,76 +16,129 @@ namespace ConsoleAppTestWebApiAccess
         {
             var builder = new ConfigurationBuilder()
              .SetBasePath(Directory.GetCurrentDirectory())
-             .AddJsonFile("secrets.json", optional: true, reloadOnChange: true)
-             .AddUserSecrets<Program>();
+             .AddJsonFile("secrets.json", optional: true, reloadOnChange: true);
 
 
             var configuration = builder.Build();
+            var token_tenant_endpoint = configuration["GetTokenTenantIdEndpoint"] ?? "";
+            var token_clientId = configuration["GetTokenClientId"] ?? "";
+            var token_clientSecret = configuration["GetTokenClientSecret"] ?? "";
+            var token_resource = configuration["GetTokenResource"] ?? "";
 
-            var tenantId = configuration["TenantId"];
-            var clientId = configuration["ClientId"];
-            var clientSecret = configuration["ClientSecret"];
-            var scope = "https://graph.microsoft.com/.default";
             var token = "";
 
-            Console.WriteLine($"TenantId: {tenantId}");
-            Console.WriteLine($"ClientId: {clientId}");
-            Console.WriteLine($"ClientSecret: {clientSecret}");
-            Console.WriteLine($"Scope: {scope}");
+            var apiBaseAddress = configuration["CallApiBaseAddress"] ?? "";
+            var apiControllerName = configuration["CallApiControllerName"] ?? "";
+
+            Console.WriteLine($"GetTokenTenantID_endpoint: {token_tenant_endpoint}");
+            Console.WriteLine($"GetTokenClientId: {token_clientId}");
+            Console.WriteLine($"GetTokenClientSecret: {token_clientSecret}");
+            Console.WriteLine($"GetTokenResource: {token_resource}");
+
             Console.WriteLine("");
+            Console.WriteLine($"CallApiBaseAddress: {apiBaseAddress}");
+            Console.WriteLine($"CallApiControllerName: {apiControllerName}");
+            Console.WriteLine("");
+            Console.WriteLine("Applikationen startad. Använd följande kommandon:");
+            Console.WriteLine("'T' - Hämta access_token");
+            Console.WriteLine("'C' - Kopiera access_token till urklipp");
+            Console.WriteLine("'L' - Kontrollera tid kvar på token");
+            Console.WriteLine($"'G' - Testa Get() {apiControllerName} fråga mot API");
+            Console.WriteLine("'ESC' - Avsluta applikationen");
+           
 
-            Console.WriteLine("Tryck F för att hämta CCT Fordonsflytt - MoveIT API Bearer Token...");
-            if (Console.ReadKey().Key == ConsoleKey.F)
-            {
-                Console.WriteLine(" ");
-                Console.WriteLine(" ");
-                token = await GetAccessTokenAsync(tenantId, clientId, clientSecret, scope);
-                Console.WriteLine($"Access Token: {token}");
-                Console.WriteLine(" ");
-                Console.WriteLine(" ");
-                var minutesLeft = TokenExpiresInMinutes(token);
-                if (minutesLeft <= 0)
-                {
-                    Console.WriteLine("Token har gått ut.");
-                }
-                else
-                {
-                    Console.WriteLine($"Token är fortfarande giltig i {minutesLeft} minuter");
-                }
 
-            }
-            Console.WriteLine(" ");
-            Console.WriteLine(" ");
-            Console.WriteLine("Tryck 'C' för att kopiera access_token till urklipp.");
-            if (Console.ReadKey().Key == ConsoleKey.C)
+            while (true) // En oändlig loop som fortsätter tills användaren väljer att avsluta
             {
-                // Windows Forms Clipboard.SetDataObject används här som ett exempel
-                await ClipboardService.SetTextAsync(token);
-                Console.WriteLine("\nToken kopierad till urklipp.");
-            }
-            Console.WriteLine(" ");
-            Console.WriteLine(" ");
-            Console.WriteLine("Tryck 'ESC' för att avsluta");
-            if (Console.ReadKey().Key == ConsoleKey.Escape)
-            {
-                Environment.Exit(0);
+                Console.WriteLine("");
+                Console.Write("Ange kommando: ");
+               
+                var key = Console.ReadKey().Key;
+                Console.WriteLine(""); // För att göra en ny rad efter användarens input
+                Console.WriteLine("");
+
+                switch (key)
+                {
+                    case ConsoleKey.T:
+                        // Hämta token-logik
+                        token = await GetAccessTokenAsync(token_tenant_endpoint, token_clientId, token_clientSecret, token_resource);
+                        Console.WriteLine($"Access Token: {token}");
+                        break;
+                    case ConsoleKey.C:
+                        // Kopiera token till urklipp
+                        // Se till att ClipboardService.SetTextAsync finns implementerad korrekt
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            await ClipboardService.SetTextAsync(token);
+                            Console.WriteLine("Token kopierad till urklipp.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Ingen token att kopiera.");
+                        }
+                        break;
+                    case ConsoleKey.L:
+                        // Kontrollera tid kvar på token
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            CheckTimeLeftOnToken(token);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Ingen token att kontrollera.");
+                        }
+                        break;
+                    case ConsoleKey.G:
+                        // Testa fråga mot API
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                           await MakeApiCallWithToken(token,apiBaseAddress,apiControllerName);
+                        }
+                        else
+                        {
+                            Console.WriteLine("Ingen token att testa.");
+                        }
+                        break;
+                    case ConsoleKey.Escape:
+                        // Avsluta applikationen
+                        Console.WriteLine("Avslutar applikationen...");
+                        return; // Avslutar Main och därmed programmet
+                    default:
+                        // Hanterar ogiltiga kommandon
+                        Console.WriteLine("Ogiltigt kommando.");
+                        break;
+                }
             }
         }
 
-        private static async Task<string> GetAccessTokenAsync(string tenantId, string clientId, string clientSecret, string scope)
+        private static void CheckTimeLeftOnToken(string token)
         {
-            var tokenEndpoint = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
+            var minutesLeft = TokenExpiresInMinutes(token);
+            if (minutesLeft <= 0)
+            {
+                Console.WriteLine("Token har gått ut.");
+            }
+            else
+            {
+                Console.WriteLine($"Token är fortfarande giltig i {minutesLeft} minuter");
+            }
+        }
+
+        private static async Task<string> GetAccessTokenAsync(string endpoint, string clientId, string clientSecret, string resource)
+        {
+            var tokenTenantID_Endpoint = endpoint;
             var client = new HttpClient();
 
             var requestBody = new Dictionary<string, string>
             {
+                ["grant_type"] = "client_credentials",
                 ["client_id"] = clientId,
-                ["scope"] = scope,
                 ["client_secret"] = clientSecret,
-                ["grant_type"] = "client_credentials"
+                ["resource"] = resource
+
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
+            var request = new HttpRequestMessage(HttpMethod.Post, tokenTenantID_Endpoint)
             {
                 Content = new FormUrlEncodedContent(requestBody)
             };
@@ -106,6 +163,33 @@ namespace ConsoleAppTestWebApiAccess
 
             throw new ApplicationException("Unable to retrieve access token.");
         }
+
+        static async Task MakeApiCallWithToken(string token,string apibaseaddress,string apicontrollername)
+        {
+            var client = new HttpClient();
+            client.BaseAddress = new Uri(apibaseaddress);
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            // Lägg till Bearer token i Authorization-header
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            try
+            {
+                // Skicka GET-förfrågan till API-endpunkten
+                var response = await client.GetAsync(apicontrollername);
+                response.EnsureSuccessStatusCode(); // Kasta ett undantag om inte ett framgångsrikt svar
+
+                // Läs svaret som en sträng
+                var responseBody = await response.Content.ReadAsStringAsync();
+                Console.WriteLine(responseBody);
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nException!");
+                Console.WriteLine($"Request exception: {e.Message}");
+            }
+        }
+
 
 
         public static DateTime? GetTokenExpiryDate(string token)
@@ -132,6 +216,8 @@ namespace ConsoleAppTestWebApiAccess
 
             return expiryDate.Value.Subtract( DateTime.UtcNow).Minutes;
         }
+
+       
     }
 }
 
