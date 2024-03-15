@@ -44,7 +44,7 @@ namespace ConsoleAppTestWebApiAccess
             Console.WriteLine("'C' - Kopiera access_token till urklipp");
             Console.WriteLine("'L' - Kontrollera tid kvar på token");
             Console.WriteLine($"'G' - Testa Get() {apiControllerName} fråga mot API");
-            Console.WriteLine("'ESC' - Avsluta applikationen");
+            Console.WriteLine("'E' - Avsluta applikationen");
            
 
 
@@ -53,60 +53,67 @@ namespace ConsoleAppTestWebApiAccess
                 Console.WriteLine("");
                 Console.Write("Ange kommando: ");
                
-                var key = Console.ReadKey().Key;
+                var line = Console.ReadLine();
                 Console.WriteLine(""); // För att göra en ny rad efter användarens input
                 Console.WriteLine("");
-
-                switch (key)
+                var key = line?.FirstOrDefault() ?? ' ';
+                if (string.IsNullOrEmpty(line) || line.Length > 1)
                 {
-                    case ConsoleKey.T:
-                        // Hämta token-logik
-                        token = await GetAccessTokenAsync(token_tenant_endpoint, token_clientId, token_clientSecret, token_resource);
-                        Console.WriteLine($"Access Token: {token}");
-                        break;
-                    case ConsoleKey.C:
-                        // Kopiera token till urklipp
-                        // Se till att ClipboardService.SetTextAsync finns implementerad korrekt
-                        if (!string.IsNullOrEmpty(token))
-                        {
-                            await ClipboardService.SetTextAsync(token);
-                            Console.WriteLine("Token kopierad till urklipp.");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Ingen token att kopiera.");
-                        }
-                        break;
-                    case ConsoleKey.L:
-                        // Kontrollera tid kvar på token
-                        if (!string.IsNullOrEmpty(token))
-                        {
-                            CheckTimeLeftOnToken(token);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Ingen token att kontrollera.");
-                        }
-                        break;
-                    case ConsoleKey.G:
-                        // Testa fråga mot API
-                        if (!string.IsNullOrEmpty(token))
-                        {
-                           await MakeApiCallWithToken(token,apiBaseAddress,apiControllerName);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Ingen token att testa.");
-                        }
-                        break;
-                    case ConsoleKey.Escape:
-                        // Avsluta applikationen
-                        Console.WriteLine("Avslutar applikationen...");
-                        return; // Avslutar Main och därmed programmet
-                    default:
-                        // Hanterar ogiltiga kommandon
-                        Console.WriteLine("Ogiltigt kommando.");
-                        break;
+                    Console.WriteLine("Ogiltigt kommando. Försök igen med endast ett tecken.");
+                }
+                else
+                {
+                    switch (key)
+                    {
+                        case 'T':
+                            // Hämta token-logik
+                            token = await GetAccessTokenAsync(token_tenant_endpoint, token_clientId, token_clientSecret, token_resource);
+                            Console.WriteLine($"Bearer: {token}");
+                            break;
+                        case 'C':
+                            // Kopiera token till urklipp
+                            // Se till att ClipboardService.SetTextAsync finns implementerad korrekt
+                            if (!string.IsNullOrEmpty(token))
+                            {
+                                await ClipboardService.SetTextAsync(token);
+                                Console.WriteLine("Token kopierad till urklipp.");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Ingen token att kopiera.");
+                            }
+                            break;
+                        case 'L':
+                            // Kontrollera tid kvar på token
+                            if (!string.IsNullOrEmpty(token))
+                            {
+                                CheckTimeLeftOnToken(token);
+                            }
+                            else
+                            {
+                                Console.WriteLine("Ingen token att kontrollera.");
+                            }
+                            break;
+                        case 'G':
+                            // Testa fråga mot API
+                            if (!string.IsNullOrEmpty(token))
+                            {
+                                await MakeApiCallWithToken(token, apiBaseAddress, apiControllerName);
+                            }
+                            else
+                            {
+                                Console.WriteLine("Ingen token att testa.");
+                            }
+                            break;
+                        case 'E':
+                            // Avsluta applikationen
+                            Console.WriteLine("Avslutar applikationen...");
+                            return; // Avslutar Main och därmed programmet
+                        default:
+                            // Hanterar ogiltiga kommandon
+                            Console.WriteLine("Ogiltigt kommando.");
+                            break;
+                    }
                 }
             }
         }
@@ -134,7 +141,7 @@ namespace ConsoleAppTestWebApiAccess
                 ["grant_type"] = "client_credentials",
                 ["client_id"] = clientId,
                 ["client_secret"] = clientSecret,
-                ["resource"] = resource
+                ["scope"] = resource
 
             };
 
@@ -170,7 +177,6 @@ namespace ConsoleAppTestWebApiAccess
             client.BaseAddress = new Uri(apibaseaddress);
             client.DefaultRequestHeaders.Accept.Clear();
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            // Lägg till Bearer token i Authorization-header
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             try
